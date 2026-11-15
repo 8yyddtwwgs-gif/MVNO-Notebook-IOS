@@ -1,0 +1,36 @@
+name: Build Web Notebook iOS IPA
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate Xcode project
+        run: xcodegen generate
+      - name: Compile iOS application without signing
+        run: |
+          set -euo pipefail
+          xcodebuild -project MVNONotebook.xcodeproj -scheme MVNONotebook -configuration Release -sdk iphoneos -derivedDataPath "$RUNNER_TEMP/derived" CODE_SIGNING_ALLOWED=NO build
+      - name: Package unsigned IPA
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/package/Payload"
+          cp -R "$RUNNER_TEMP/derived/Build/Products/Release-iphoneos/MVNONotebook.app" "$RUNNER_TEMP/package/Payload/"
+          (cd "$RUNNER_TEMP/package" && zip -qry "$GITHUB_WORKSPACE/MVNONotebook-unsigned.ipa" Payload)
+          unzip -t MVNONotebook-unsigned.ipa
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MVNONotebook-unsigned-IPA
+          path: MVNONotebook-unsigned.ipa
+          retention-days: 14
